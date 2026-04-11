@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>物流标签2.1-大批量稳定版</title>
+    <title>物流标签2.2-单号固定版</title>
 
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -13,7 +13,6 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #f4f7f9; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
         
-        /* 进度遮罩层 */
         #overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.8); z-index: 10000;
@@ -29,9 +28,8 @@
         input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
         
         .btn-group { display: flex; gap: 10px; margin-top: 20px; }
-        button { flex: 1; padding: 15px; border: none; border-radius: 10px; font-weight: bold; color: #fff; cursor: pointer; transition: 0.3s; }
+        button { flex: 1; padding: 15px; border: none; border-radius: 10px; font-weight: bold; color: #fff; cursor: pointer; }
         
-        /* 标签预览区域 */
         #container { margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
         .page-wrapper { background: #fff; margin-bottom: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); overflow: hidden; }
         .size-100 { width: 100mm; height: 100mm; }
@@ -42,7 +40,7 @@
             width: 100%; height: 100%; padding: 5mm; border: 1px solid #eee;
             display: flex; flex-direction: column; align-items: center; justify-content: space-between;
         }
-        .header-mode { width: 100%; text-align: center; font-size: 22px; font-weight: 900; border-bottom: 5px solid #000; padding-bottom: 2mm; }
+        .header-mode { width: 100%; text-align: center; font-size: 22px; font-weight: 900; border-bottom: 5px solid #000; padding-bottom: 2mm; text-transform: uppercase;}
         .big-qty { font-size: 42px; font-weight: 900; }
         .big-tracking { font-size: 20px; font-weight: bold; font-family: monospace; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 2mm 0; width: 100%; text-align: center; }
         .barcode-area { width: 100%; text-align: center; }
@@ -55,9 +53,8 @@
 <body>
 
 <div id="overlay">
-    <div style="font-size: 20px; margin-bottom: 10px;">正在处理大批量数据...</div>
+    <div style="font-size: 20px; margin-bottom: 10px;">正在为您生成 PDF...</div>
     <div id="progressText" style="font-size: 30px; font-weight: bold; color: #28a745;">0%</div>
-    <div style="margin-top: 10px; opacity: 0.7;">请勿关闭浏览器</div>
 </div>
 
 <div class="controls no-print">
@@ -67,14 +64,15 @@
             <option value="大陆飞日本">大陆飞日本</option>
             <option value="香港飞日本">香港飞日本</option>
             <option value="国际快递">国际快递</option>
+            <option value="快船包税">快船包税</option>
             <option value="CUSTOM">-- 手动输入自定义 --</option>
         </select>
-        <input type="text" id="customInput" placeholder="请输入自定义运输方式" style="display:none; margin-top:10px;">
+        <input type="text" id="customInput" placeholder="请输入自定义名称" style="display:none; margin-top:10px;">
     </div>
     
     <div class="row" style="display:flex; gap:10px;">
-        <div style="flex:1;"><label>单号前缀</label><input type="text" id="prefix" value="HCN"></div>
-        <div style="flex:1;"><label>数量</label><input type="number" id="qty" value="1"></div>
+        <div style="flex:1;"><label>单号前缀</label><input type="text" id="prefix" value="HGCD"></div>
+        <div style="flex:1;"><label>总件数</label><input type="number" id="qty" value="1"></div>
     </div>
 
     <div class="row">
@@ -95,14 +93,14 @@
 <div id="container"></div>
 
 <script>
-    // 检查是否显示自定义输入框
+    let currentMainTracking = ""; // 存储当前批次的主单号
+
     function checkCustomMode() {
         const select = document.getElementById('modeSelect');
         const input = document.getElementById('customInput');
         input.style.display = (select.value === 'CUSTOM') ? 'block' : 'none';
     }
 
-    // 生成预览逻辑
     function renderPreview() {
         const qty = parseInt(document.getElementById('qty').value) || 1;
         const prefix = document.getElementById('prefix').value;
@@ -111,38 +109,40 @@
                      document.getElementById('customInput').value : document.getElementById('modeSelect').value;
 
         const container = document.getElementById('container');
-        container.innerHTML = ''; // 清空旧的
+        container.innerHTML = '';
 
         const dateStr = new Date().toISOString().slice(2,10).replace(/-/g,'');
         const randomSN = Math.floor(Math.random() * 9000 + 1000);
+        
+        // 【关键改动】：在此处生成固定主单号，不随循环变动
+        currentMainTracking = `${prefix}${dateStr}${randomSN}`;
 
         for (let i = 1; i <= qty; i++) {
-            const tracking = `${prefix}${dateStr}${randomSN}${i}`;
             const wrapper = document.createElement('div');
             wrapper.className = `page-wrapper size-${size}`;
             wrapper.innerHTML = `
                 <div class="label-content">
-                    <div class="header-mode">${mode || '物流标签'}</div>
+                    <div class="header-mode">${mode || 'LOGISTICS'}</div>
                     <div class="big-qty">${i} / ${qty}</div>
-                    <div class="big-tracking">${tracking}</div>
+                    <div class="big-tracking">${currentMainTracking}</div>
                     <div class="barcode-area"><canvas id="bc-${i}"></canvas></div>
                     <div class="footer-made">MADE IN CHINA</div>
                 </div>
             `;
             container.appendChild(wrapper);
 
-            // 绘制条形码
-            JsBarcode(`#bc-${i}`, tracking, {
+            // 条形码数据：主单号 + 箱号
+            const barcodeData = `${currentMainTracking}-${i}`;
+            JsBarcode(`#bc-${i}`, barcodeData, {
                 format: "CODE128",
-                width: 2.5,
-                height: 70,
+                width: 2.2,
+                height: 60,
                 displayValue: false,
                 margin: 0
             });
         }
     }
 
-    // 导出PDF逻辑（针对大批量深度优化）
     async function exportToPDF() {
         const pages = document.querySelectorAll('.page-wrapper');
         if (pages.length === 0) return alert("请先生成预览！");
@@ -161,34 +161,27 @@
             const pdf = new jsPDF({ unit: 'mm', format: [pW, pH], compress: true });
 
             for (let i = 0; i < pages.length; i++) {
-                // 更新进度
-                const percent = Math.round((i / pages.length) * 100);
-                progressText.innerText = percent + "%";
+                progressText.innerText = Math.round((i / pages.length) * 100) + "%";
 
-                // 将单张 HTML 转为 Canvas
-                // 使用 scale: 1.5 既保证扫码清晰，又极大节省内存（原本是3）
                 const canvas = await html2canvas(pages[i], {
                     scale: 1.8, 
                     useCORS: true,
                     logging: false
                 });
 
-                const imgData = canvas.toDataURL('image/jpeg', 0.7); // 压缩质量
+                const imgData = canvas.toDataURL('image/jpeg', 0.8);
                 
                 if (i > 0) pdf.addPage();
                 pdf.addImage(imgData, 'JPEG', 0, 0, pW, pH);
 
-                // 重点：强制销毁 Canvas 释放内存
                 canvas.width = 0;
                 canvas.height = 0;
                 
-                // 给浏览器呼吸时间，防止 UI 冻结
                 if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
             }
 
-            pdf.save(`Labels_${new Date().getTime()}.pdf`);
+            pdf.save(`${currentMainTracking}_Total${pages.length}.pdf`);
         } catch (e) {
-            console.error(e);
             alert("导出异常：" + e.message);
         } finally {
             overlay.style.display = 'none';
