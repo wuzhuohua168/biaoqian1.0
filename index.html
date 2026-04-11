@@ -1,675 +1,199 @@
 <!DOCTYPE html>
-
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>物流标签1.0-智能条码版</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>物流标签2.1-大批量稳定版</title>
 
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f4f7f9; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; }
+        
+        /* 进度遮罩层 */
+        #overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 10000;
+            flex-direction: column; align-items: center; justify-content: center; color: white;
+        }
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        .controls { 
+            max-width: 500px; margin: 20px auto; background: #fff; padding: 20px; 
+            border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        }
+        .row { margin-bottom: 15px; }
+        label { font-size: 13px; font-weight: bold; color: #444; display: block; margin-bottom: 6px; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 15px; border: none; border-radius: 10px; font-weight: bold; color: #fff; cursor: pointer; transition: 0.3s; }
+        
+        /* 标签预览区域 */
+        #container { margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+        .page-wrapper { background: #fff; margin-bottom: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); overflow: hidden; }
+        .size-100 { width: 100mm; height: 100mm; }
+        .size-80 { width: 80mm; height: 80mm; }
+        .size-50 { width: 100mm; height: 50mm; }
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        .label-content { 
+            width: 100%; height: 100%; padding: 5mm; border: 1px solid #eee;
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+        }
+        .header-mode { width: 100%; text-align: center; font-size: 22px; font-weight: 900; border-bottom: 5px solid #000; padding-bottom: 2mm; }
+        .big-qty { font-size: 42px; font-weight: 900; }
+        .big-tracking { font-size: 20px; font-weight: bold; font-family: monospace; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 2mm 0; width: 100%; text-align: center; }
+        .barcode-area { width: 100%; text-align: center; }
+        .barcode-area canvas { max-width: 100%; height: auto !important; }
+        .footer-made { width: 100%; border: 3px solid #000; text-align: center; font-size: 18px; font-weight: bold; padding: 1mm; }
 
-<style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #f4f7f9; }
-    
-    #container { margin: 0 auto; position: relative; }
-
-    .page-wrapper {
-        overflow: hidden;
-        position: relative;
-        background: #fff;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        margin: 0 auto 5px;
-    }
-
-    /* 100mm x 100mm 标准尺寸 */
-    .page-wrapper.size-100 {
-        width: 100mm;
-        height: 100mm;
-    }
-
-    /* 80mm x 80mm 中型尺寸 */
-    .page-wrapper.size-80 {
-        width: 80mm;
-        height: 80mm;
-    }
-
-    /* 100mm x 50mm 小型尺寸 */
-    .page-wrapper.size-50 {
-        width: 100mm;
-        height: 50mm;
-    }
-
-    .export-mode .page-wrapper {
-        margin-bottom: 0 !important;
-        box-shadow: none !important;
-        page-break-after: always;
-    }
-
-    .label-content {
-        width: 100%;
-        height: 100%;
-        padding: 4mm;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: space-between;
-        border: 1px solid #f0f0f0;
-    }
-
-    .label-content.size-80 {
-        padding: 3mm;
-    }
-
-    .label-content.size-50 {
-        padding: 2mm;
-    }
-
-    .header-mode {
-        width: 100%;
-        text-align: center;
-        font-size: 20px;
-        font-weight: bold;
-        border-bottom: 4px solid #000;
-        padding-bottom: 1.5mm;
-    }
-
-    .size-80 .header-mode {
-        font-size: 18px;
-        border-bottom: 3px solid #000;
-    }
-
-    .size-50 .header-mode {
-        font-size: 14px;
-        border-bottom: 2px solid #000;
-        padding-bottom: 1mm;
-    }
-
-    .mid-info { text-align: center; width: 100%; margin: 1mm 0; }
-    .big-qty { font-size: 38px; font-weight: 900; line-height: 1; }
-    
-    .size-80 .big-qty { font-size: 32px; }
-    .size-50 .big-qty { font-size: 20px; }
-
-    .big-tracking {
-        font-size: 22px; font-weight: 900; font-family: monospace;
-        display: block; border-top: 2px solid #000; border-bottom: 2px solid #000;
-        padding: 1.5mm 0; margin: 1.5mm 0;
-    }
-
-    .size-80 .big-tracking {
-        font-size: 18px;
-    }
-
-    .size-50 .big-tracking {
-        font-size: 14px;
-        padding: 1mm 0;
-        margin: 1mm 0;
-    }
-
-    .barcode-area { 
-        width: 100%; 
-        flex: 1;
-        display: flex; 
-        align-items: center; 
-        justify-content: center;
-        min-height: 35mm;
-    }
-
-    .size-80 .barcode-area {
-        min-height: 30mm;
-    }
-
-    .size-50 .barcode-area {
-        min-height: 20mm;
-    }
-
-    .barcode-img, .qrcode-container { 
-        max-width: 100%; 
-        max-height: 100%; 
-        height: auto; 
-        display: block; 
-    }
-
-    .qrcode-container {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .qrcode-container canvas {
-        max-width: 100% !important;
-        max-height: 100% !important;
-        height: auto !important;
-    }
-
-    .footer-made {
-        width: 100%; border: 3px solid #000; text-align: center;
-        font-size: 18px; font-weight: bold; padding: 1mm;
-    }
-
-    .size-80 .footer-made {
-        font-size: 16px;
-        border: 2px solid #000;
-    }
-
-    .size-50 .footer-made {
-        font-size: 12px;
-        border: 2px solid #000;
-        padding: 0.5mm;
-    }
-
-    .controls { 
-        max-width: 450px; 
-        margin: 10px auto 20px; 
-        background: #fff; 
-        padding: 15px; 
-        border-radius: 12px; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-    }
-    .row { margin-bottom: 10px; }
-    label { font-size: 12px; font-weight: bold; color: #666; display: block; margin-bottom: 4px; }
-    input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
-    #custom-mode-row { display: none; margin-top: 5px; }
-    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-    button { flex: 1; padding: 15px; border: none; border-radius: 10px; font-weight: bold; color: #fff; cursor: pointer; }
-    
-    .info-tip {
-        background: #e7f3ff;
-        border-left: 4px solid #4a90e2;
-        padding: 10px;
-        margin-top: 10px;
-        font-size: 12px;
-        color: #555;
-        border-radius: 4px;
-    }
-
-    .copyright-info {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 12px;
-        margin-top: 10px;
-        font-size: 12px;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-    }
-
-    .copyright-title {
-        font-weight: bold;
-        font-size: 13px;
-        margin-bottom: 5px;
-        letter-spacing: 0.5px;
-    }
-
-    .copyright-company {
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 4px;
-    }
-
-    .copyright-contact {
-        font-size: 12px;
-        opacity: 0.95;
-    }
-
-    .copy-section {
-        max-width: 450px;
-        margin: 0 auto 20px;
-        background: #fff;
-        padding: 15px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        display: none;
-    }
-
-    .copy-section.show {
-        display: block;
-    }
-
-    .copy-section h3 {
-        font-size: 16px;
-        color: #333;
-        margin-bottom: 15px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        border-bottom: 2px solid #f0f0f0;
-        padding-bottom: 10px;
-    }
-
-    .copy-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .copy-item {
-        display: flex;
-        gap: 8px;
-        align-items: stretch;
-    }
-
-    .copy-info {
-        flex: 1;
-        padding: 12px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        font-size: 14px;
-        color: #333;
-        font-family: monospace;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        border: 1px solid #e0e0e0;
-    }
-
-    .copy-info-main {
-        font-weight: bold;
-        color: #000;
-    }
-
-    .copy-info-sub {
-        font-size: 12px;
-        color: #666;
-    }
-
-    .copy-btn {
-        width: 90px;
-        padding: 12px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 13px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-    }
-
-    .copy-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
-    }
-
-    .copy-btn:active {
-        transform: translateY(0);
-    }
-
-    .copy-btn.copied {
-        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-    }
-
-    .copy-btn-icon {
-        font-size: 20px;
-    }
-
-    .toast {
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%) translateY(-100px);
-        background: #28a745;
-        color: white;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 14px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        z-index: 9999;
-        opacity: 0;
-        transition: all 0.3s ease;
-    }
-
-    .toast.show {
-        transform: translateX(-50%) translateY(0);
-        opacity: 1;
-    }
-</style>
-
+        @media print { .no-print { display: none; } }
+    </style>
 </head>
-
 <body>
+
+<div id="overlay">
+    <div style="font-size: 20px; margin-bottom: 10px;">正在处理大批量数据...</div>
+    <div id="progressText" style="font-size: 30px; font-weight: bold; color: #28a745;">0%</div>
+    <div style="margin-top: 10px; opacity: 0.7;">请勿关闭浏览器</div>
+</div>
 
 <div class="controls no-print">
     <div class="row">
         <label>运输方式</label>
-        <select id="mode" onchange="toggleCustomMode()">
-            <option value="CUSTOM">-- 手动输入自定义 
-            <option>大陆飞日本</option>
-            <option>香港飞日本</option>
-            <option>国际快递</option>
-            <option>普船海运GS</option>
-            <option>普船海运包税</option>
-            <option>快船包税</option>
-            <option>普船商业件</option>
-            <option>快船商业件</option>
-            <option>20呎整柜商业件</option>
-            <option>40呎整柜商业件</option>
-  --</option>
+        <select id="modeSelect" onchange="checkCustomMode()">
+            <option value="大陆飞日本">大陆飞日本</option>
+            <option value="香港飞日本">香港飞日本</option>
+            <option value="国际快递">国际快递</option>
+            <option value="CUSTOM">-- 手动输入自定义 --</option>
         </select>
-        <div id="custom-mode-row"><input type="text" id="custom-mode-input" placeholder="输入名称"></div>
+        <input type="text" id="customInput" placeholder="请输入自定义运输方式" style="display:none; margin-top:10px;">
     </div>
-    <div class="row">
-        <div style="display:flex; gap:10px;">
-            <div style="flex:1"><label>单号前缀</label><input type="text" id="prefix" value="  "></div>
-            <div style="flex:1"><label>生成件数</label><input type="number" id="qty" value="1"></div>
-        </div>
+    
+    <div class="row" style="display:flex; gap:10px;">
+        <div style="flex:1;"><label>单号前缀</label><input type="text" id="prefix" value="HCN"></div>
+        <div style="flex:1;"><label>数量</label><input type="number" id="qty" value="1"></div>
     </div>
-    <div class="row">
-        <label>标签尺寸</label>
-        <select id="label-size">
-            <option value="100">100mm × 100mm (标准)</option>
-            <option value="80">80mm × 80mm (中型)</option>
-            <option value="50">100mm × 50mm (小型)</option>
-        </select>
-    </div>
-    <div class="row">
-        <label>码类型</label>
-        <select id="code-type">
-            <option value="barcode">条形码 (适合扫码枪)</option>
-            <option value="qrcode">二维码 (可含更多信息)</option>
-        </select>
-    </div>
-    <div class="btn-group">
-        <button style="background:#4a90e2" onclick="handleGenerate()">1. 生成预览</button>
-        <button style="background:#28a745" onclick="handleExport()">2. 导出 PDF</button>
-    </div>
-    <div class="info-tip">
-        💡 <strong>尺寸说明：</strong>标准100×100适合普通打印机；80×80适合热敏打印机；100×50适合小包裹快递标签
-    </div>
-    <div class="info-tip">
-        💡 <strong>码类型说明：</strong>条形码适合扫码枪快速识别；二维码可以包含更多信息（如网址、地址等），手机也能扫描
-    </div>
-    <div class="copyright-info">
-        <div class="copyright-title">© 版权所有</div>
-        <div class="copyright-company">HCN Supply Chain (Shenzhen) Co., Ltd.</div>
-        <div class="copyright-contact">📞 联系方式：HG恒然 19867541192</div>
-    </div>
-</div>
 
-<div class="copy-section" id="copySection">
-    <h3>
-        <span>📋</span>
-        <span>快速复制信息</span>
-    </h3>
-    <div class="copy-buttons" id="copyButtons"></div>
+    <div class="row">
+        <label>尺寸规格</label>
+        <select id="labelSize">
+            <option value="100">100mm × 100mm</option>
+            <option value="80">80mm × 80mm</option>
+            <option value="50">100mm × 50mm</option>
+        </select>
+    </div>
+
+    <div class="btn-group">
+        <button style="background:#4a90e2" onclick="renderPreview()">1. 生成预览</button>
+        <button style="background:#28a745" onclick="exportToPDF()">2. 导出 PDF</button>
+    </div>
 </div>
 
 <div id="container"></div>
-<canvas id="temp-canvas" style="display:none;"></canvas>
-<div id="temp-qrcode" style="display:none;"></div>
-
-<div class="toast" id="toast">复制成功！</div>
 
 <script>
-let fileNameData = { mode: "", sn: "" };
-let generatedData = [];
-
-function toggleCustomMode() {
-    const s = document.getElementById('mode');
-    document.getElementById('custom-mode-row').style.display = (s.value === "CUSTOM") ? "block" : "none";
-}
-
-function handleGenerate() {
-    const qty = parseInt(document.getElementById('qty').value) || 1;
-    const prefix = document.getElementById('prefix').value || "CN";
-    const modeSelect = document.getElementById('mode');
-    const modeText = (modeSelect.value === "CUSTOM") ? document.getElementById('custom-mode-input').value : modeSelect.options[modeSelect.selectedIndex].text;
-    const labelSize = document.getElementById('label-size').value;
-    const codeType = document.getElementById('code-type').value;
-    
-    const container = document.getElementById('container');
-    container.classList.remove('export-mode');
-    container.innerHTML = '';
-    
-    // 根据尺寸设置容器宽度
-    if (labelSize === '100') {
-        container.style.width = '100mm';
-    } else if (labelSize === '80') {
-        container.style.width = '80mm';
-    } else if (labelSize === '50') {
-        container.style.width = '100mm';
+    // 检查是否显示自定义输入框
+    function checkCustomMode() {
+        const select = document.getElementById('modeSelect');
+        const input = document.getElementById('customInput');
+        input.style.display = (select.value === 'CUSTOM') ? 'block' : 'none';
     }
-    
-    const dateStr = new Date().toISOString().slice(2,10).replace(/-/g,'');
-    const randomSuffix = Math.floor(Math.random() * 9000 + 1000);
-    
-    fileNameData.mode = modeText;
-    fileNameData.sn = `${prefix}${dateStr}${randomSuffix}1`;
 
-    generatedData = [];
+    // 生成预览逻辑
+    function renderPreview() {
+        const qty = parseInt(document.getElementById('qty').value) || 1;
+        const prefix = document.getElementById('prefix').value;
+        const size = document.getElementById('labelSize').value;
+        const mode = document.getElementById('modeSelect').value === 'CUSTOM' ? 
+                     document.getElementById('customInput').value : document.getElementById('modeSelect').value;
 
-    for(let i=1; i<=qty; i++) {
-        const tracking = `${prefix}${dateStr}${randomSuffix}${i}`;
-        const barcodeData = `${tracking}-${i}/${qty}`;
-        
-        generatedData.push({
-            mode: modeText,
-            tracking: tracking,
-            index: i,
-            total: qty
-        });
-        
-        let codeHTML = '';
-        
-        if (codeType === 'barcode') {
-            // 生成条形码
-            const tempCanvas = document.getElementById('temp-canvas');
-            
-            // 根据尺寸调整条形码参数
-            let barcodeWidth = 3.5;
-            let barcodeHeight = 150;
-            if (labelSize === '80') {
-                barcodeWidth = 3;
-                barcodeHeight = 120;
-            } else if (labelSize === '50') {
-                barcodeWidth = 2.5;
-                barcodeHeight = 80;
-            }
-            
-            JsBarcode(tempCanvas, barcodeData, { 
-                format: "CODE128", 
-                width: barcodeWidth,
-                height: barcodeHeight,
-                displayValue: false, 
-                margin: 10
-            });
-            
-            const imgData = tempCanvas.toDataURL("image/png", 1.0);
-            codeHTML = `<img src="${imgData}" class="barcode-img">`;
-        } else {
-            // 生成二维码
-            const tempQR = document.getElementById('temp-qrcode');
-            tempQR.innerHTML = '';
-            
-            // 根据尺寸调整二维码大小
-            let qrSize = 180;
-            if (labelSize === '80') {
-                qrSize = 150;
-            } else if (labelSize === '50') {
-                qrSize = 100;
-            }
-            
-            const qr = new QRCode(tempQR, {
-                text: barcodeData,
-                width: qrSize,
-                height: qrSize,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.H
-            });
-            
-            // 获取生成的canvas
-            const qrCanvas = tempQR.querySelector('canvas');
-            const qrImgData = qrCanvas.toDataURL("image/png", 1.0);
-            codeHTML = `<div class="qrcode-container"><img src="${qrImgData}" style="width: ${qrSize}px; height: ${qrSize}px;"></div>`;
-        }
+        const container = document.getElementById('container');
+        container.innerHTML = ''; // 清空旧的
 
-        const wrapper = document.createElement('div');
-        wrapper.className = `page-wrapper size-${labelSize}`;
-        wrapper.innerHTML = `
-            <div class="label-content size-${labelSize}">
-                <div class="header-mode">${modeText}</div>
-                <div class="mid-info">
+        const dateStr = new Date().toISOString().slice(2,10).replace(/-/g,'');
+        const randomSN = Math.floor(Math.random() * 9000 + 1000);
+
+        for (let i = 1; i <= qty; i++) {
+            const tracking = `${prefix}${dateStr}${randomSN}${i}`;
+            const wrapper = document.createElement('div');
+            wrapper.className = `page-wrapper size-${size}`;
+            wrapper.innerHTML = `
+                <div class="label-content">
+                    <div class="header-mode">${mode || '物流标签'}</div>
                     <div class="big-qty">${i} / ${qty}</div>
-                    <span class="big-tracking">${tracking}</span>
+                    <div class="big-tracking">${tracking}</div>
+                    <div class="barcode-area"><canvas id="bc-${i}"></canvas></div>
+                    <div class="footer-made">MADE IN CHINA</div>
                 </div>
-                <div class="barcode-area">${codeHTML}</div>
-                <div class="footer-made">MADE IN CHINA</div>
-            </div>
-        `;
-        container.appendChild(wrapper);
-    }
+            `;
+            container.appendChild(wrapper);
 
-    updateCopyButtons();
-}
-
-function updateCopyButtons() {
-    const copySection = document.getElementById('copySection');
-    const copyButtons = document.getElementById('copyButtons');
-    
-    if (generatedData.length === 0) {
-        copySection.classList.remove('show');
-        return;
-    }
-
-    copySection.classList.add('show');
-    copyButtons.innerHTML = '';
-
-    if (generatedData.length > 0) {
-        const firstData = generatedData[0];
-        const totalQty = generatedData.length;
-        const tracking = firstData.tracking;
-        const trackingPrefix = tracking.slice(0, -1);
-        const copyText = `${firstData.mode} ${trackingPrefix} ${totalQty}件`;
-        
-        const item = document.createElement('div');
-        item.className = 'copy-item';
-        item.innerHTML = `
-            <div class="copy-info">
-                <div class="copy-info-main">${firstData.mode}</div>
-                <div class="copy-info-sub">${trackingPrefix} · 共${totalQty}件</div>
-            </div>
-            <button class="copy-btn" onclick="copyToClipboard('${copyText}', this, 0)">
-                <span class="copy-btn-icon">📋</span>
-                <span>复制</span>
-            </button>
-        `;
-        copyButtons.appendChild(item);
-    }
-}
-
-async function copyToClipboard(text, btn, index) {
-    try {
-        await navigator.clipboard.writeText(text);
-        
-        const originalHTML = btn.innerHTML;
-        btn.classList.add('copied');
-        
-        btn.innerHTML = `
-            <span class="copy-btn-icon">✓</span>
-            <span>已复制</span>
-        `;
-        
-        showToast('复制成功！');
-        
-        setTimeout(() => {
-            btn.classList.remove('copied');
-            btn.innerHTML = originalHTML;
-        }, 2000);
-        
-    } catch (err) {
-        console.error('复制失败:', err);
-        showToast('复制失败，请手动复制', true);
-    }
-}
-
-function showToast(message, isError = false) {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.style.background = isError ? '#dc3545' : '#28a745';
-    toast.classList.add('show');
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 2000);
-}
-
-async function handleExport() {
-    const container = document.getElementById('container');
-    if(!container.hasChildNodes()) return alert("请先生成预览");
-
-    container.classList.add('export-mode');
-    window.scrollTo(0, 0);
-
-    const name = `${fileNameData.mode}_${fileNameData.sn}.pdf`;
-    const pages = container.querySelectorAll('.page-wrapper');
-    const labelSize = document.getElementById('label-size').value;
-    
-    // 根据尺寸设置PDF格式
-    let pdfWidth, pdfHeight;
-    if (labelSize === '100') {
-        pdfWidth = pdfHeight = 100;
-    } else if (labelSize === '80') {
-        pdfWidth = pdfHeight = 80;
-    } else if (labelSize === '50') {
-        pdfWidth = 100;
-        pdfHeight = 50;
-    }
-    
-    try {
-        const { jsPDF } = window.jspdf || { jsPDF: null };
-        const pdf = new jsPDF({ unit: 'mm', format: [pdfWidth, pdfHeight], orientation: 'portrait' });
-        
-        for (let i = 0; i < pages.length; i++) {
-            const page = pages[i];
-            
-            const canvas = await html2canvas(page, {
-                scale: 3,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                width: page.offsetWidth,
-                height: page.offsetHeight,
-                windowWidth: page.offsetWidth,
-                windowHeight: page.offsetHeight,
-                x: 0,
-                y: 0
+            // 绘制条形码
+            JsBarcode(`#bc-${i}`, tracking, {
+                format: "CODE128",
+                width: 2.5,
+                height: 70,
+                displayValue: false,
+                margin: 0
             });
-            
-            const imgData = canvas.toDataURL('image/jpeg', 1.0);
-            
-            if (i > 0) pdf.addPage();
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
         }
-        
-        const pdfBlob = pdf.output('blob');
-        const file = new File([pdfBlob], name, { type: 'application/pdf' });
-
-        if (navigator.share && navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], title: '分享物流标签' });
-        } else {
-            pdf.save(name);
-        }
-    } catch (err) {
-        console.error(err);
-        alert("导出失败：" + err.message);
-    } finally {
-        container.classList.remove('export-mode');
     }
-}
+
+    // 导出PDF逻辑（针对大批量深度优化）
+    async function exportToPDF() {
+        const pages = document.querySelectorAll('.page-wrapper');
+        if (pages.length === 0) return alert("请先生成预览！");
+
+        const overlay = document.getElementById('overlay');
+        const progressText = document.getElementById('progressText');
+        overlay.style.display = 'flex';
+
+        const size = document.getElementById('labelSize').value;
+        let pW = 100, pH = 100;
+        if(size === '80') { pW = 80; pH = 80; }
+        if(size === '50') { pW = 100; pH = 50; }
+
+        try {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ unit: 'mm', format: [pW, pH], compress: true });
+
+            for (let i = 0; i < pages.length; i++) {
+                // 更新进度
+                const percent = Math.round((i / pages.length) * 100);
+                progressText.innerText = percent + "%";
+
+                // 将单张 HTML 转为 Canvas
+                // 使用 scale: 1.5 既保证扫码清晰，又极大节省内存（原本是3）
+                const canvas = await html2canvas(pages[i], {
+                    scale: 1.8, 
+                    useCORS: true,
+                    logging: false
+                });
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.7); // 压缩质量
+                
+                if (i > 0) pdf.addPage();
+                pdf.addImage(imgData, 'JPEG', 0, 0, pW, pH);
+
+                // 重点：强制销毁 Canvas 释放内存
+                canvas.width = 0;
+                canvas.height = 0;
+                
+                // 给浏览器呼吸时间，防止 UI 冻结
+                if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
+            }
+
+            pdf.save(`Labels_${new Date().getTime()}.pdf`);
+        } catch (e) {
+            console.error(e);
+            alert("导出异常：" + e.message);
+        } finally {
+            overlay.style.display = 'none';
+        }
+    }
 </script>
 
 </body>
